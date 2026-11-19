@@ -1,0 +1,29 @@
+{
+ "name": "Kurs OWPC – Olimpiada Wiedzy o Prawach Człowieka",
+ "short_name": "Kurs OWPC",
+ "lang": "pl",
+ "description": "Lekcje, ściągi, fiszki z powtórkami, testy próbne i mapa – przygotowanie do OWPC 2026/27.",
+ "start_url": "./",
+ "scope": "./",
+ "display": "standalone",
+ "background_color": "#F6F3EC",
+ "theme_color": "#16233A",
+ "icons": [
+  {
+   "src": "icons/icon-192.png",
+   "sizes": "192x192",
+   "type": "image/png"
+  },
+  {
+   "src": "icons/icon-512.png",
+   "sizes": "512x512",
+   "type": "image/png"
+  },
+  {
+   "src": "icons/icon-maskable-512.png",
+   "sizes": "512x512",
+   "type": "image/png",
+   "purpose": "maskable"
+  }
+ ]
+}
