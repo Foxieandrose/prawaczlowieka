@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Kurs OWPC – Olimpiada Wiedzy o Prawach Człowieka</title>
 <meta name="description" content="Kurs do Olimpiady Wiedzy o Prawach Człowieka w Świecie Współczesnym (XIV ed. 2026/27): lekcje i ściągi, fiszki z testów archiwalnych 2013–2026, generator testów, arkusze, mapa, analiza etapów.">
-<meta name="theme-color" content="#16233A">
+<meta name="theme-color" content="#F6F3EC" media="(prefers-color-scheme: light)"><meta name="theme-color" content="#0F1522" media="(prefers-color-scheme: dark)">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
@@ -198,6 +198,7 @@ label.ck.deck{display:grid;width:100%}label.ck.deck>span:last-child{justify-self
 .wkt{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) auto;gap:10px;align-items:center;margin:7px 0;font-size:14px}.wkt .lbl{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.wkt .t{height:8px;border-radius:4px;background:var(--soft);overflow:hidden}.wkt .t i{display:block;height:100%;background:var(--gold)}
 .simbox .pts{font:650 26px var(--serif)}
 .sitefoot{max-width:1100px;margin:40px auto 24px;padding:16px 20px 0;border-top:1px solid var(--line);font-size:12.5px;line-height:1.5;color:var(--muted)}.sitefoot a{color:inherit}
+@media (hover:none) and (pointer:coarse){.kbdh,.grade kbd{display:none}}
 .tgrp{display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin:22px 0 8px;padding:8px 2px;border-bottom:2px solid var(--fg);font:650 16px/1.3 var(--serif)}.tgrp span{color:var(--muted);white-space:nowrap}
 .sbar{display:flex;align-items:center;gap:12px;margin-bottom:10px;font-size:14px}
 .sbar .sp{flex:1;min-width:0}
@@ -291,7 +292,8 @@ details>summary{cursor:pointer;font-weight:600}
 .owmap .lb.q circle:not(.pt),.owmap .lb.okm circle:not(.pt){fill:var(--stamp)}.owmap .lb.q text,.owmap .lb.okm text{fill:#fff}
 .owmap.nolab .lb{display:none}.owmap .ct{display:none}.owmap.showct .ct{display:inline}
 .owmap .ct circle{fill:var(--fg)}.owmap .ct text{font:600 10px var(--sans);fill:var(--fg);paint-order:stroke;stroke:var(--mapst);stroke-width:3px;pointer-events:none}
-.owmap .lb circle:not(.pt),.owmap .lb text,.owmap .ct text,.owmap .ct circle{transform-box:fill-box;transform-origin:center;transform:scale(var(--ls,1))}.owmap .lb circle.s,.owmap .lb text.sm{transform:scale(var(--ls2,1))}
+.owmap .lb circle:not(.pt),.owmap .ct circle{transform-box:fill-box;transform-origin:center;transform:scale(var(--ls,1))}.owmap .lb circle.s{transform:scale(var(--ls2,1))}
+.owmap .lb text{font-size:calc(11px * var(--ls,1))}.owmap .lb text.sm{font-size:calc(9.5px * var(--ls2,1))}.owmap .ct text{font-size:calc(10px * var(--ls,1))}
 .mviews{margin:0 0 8px}.mapdet{margin:8px 0}.mapdet .mapslot{margin-top:8px}
 .mq{font-size:20px;margin:12px 0 10px;line-height:1.35}
 .mf{display:grid;grid-template-columns:118px minmax(0,1fr);gap:4px 10px;align-items:center;margin:7px 0}
@@ -304,7 +306,7 @@ details>summary{cursor:pointer;font-weight:600}
 </head>
 <body>
 <header class="top"><div class="in wrap">
-  <a class="brand" href="#/"><span class="seal" aria-hidden="true">PC</span><span><b>Kurs OWPC</b><small>XIV edycja · 2026/27</small></span></a>
+  <a class="brand" href="#/"><span><b>Kurs OWPC</b><small>XIV edycja · 2026/27</small></span></a>
   <nav class="tabs" id="tabs" aria-label="Działy kursu"></nav>
   <div class="tools"><span class="sync" id="sync" title="Synchronizacja"></span><button class="iconbtn" id="thm" type="button" aria-label="Przełącz motyw"></button></div>
 </div></header>
@@ -312,6 +314,6 @@ details>summary{cursor:pointer;font-weight:600}
 <nav class="bottom" id="bottom" aria-label="Działy kursu"></nav>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 <script>window.OWPC_GH=1</script>
-<script src="app.js?v=20261119a"></script>
+<script src="app.js?v=20261119c"></script>
 </body>
 </html>

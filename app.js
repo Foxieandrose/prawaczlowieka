@@ -313,7 +313,7 @@ function todayHTML() {
     $$('[data-pre]').forEach(b => b.onclick = () => startTest({ ...PRESETS.find(x => x.kind === b.dataset.pre) }));
   }, 0);
   return `<h2>Dziś</h2><div class="grid g2 today"><div class="card">${items.map(i => `<div class="titem ${i.ok ? 'done' : ''}"><span class="tick">${i.ok ? '✓' : ''}</span><span><b>${i.h}</b><br><span class="small muted">${i.d}</span></span><span>${i.ok ? '' : i.a}</span></div>`).join('')}</div>
-  <div class="card"><h3 style="margin-top:0">Tematy do podciągnięcia</h3>${wk.slice(0, 6).map(a => `<div class="wkt"><span class="lbl">${esc(tname(a.t))}</span><span class="t"><i style="width:${Math.round(a.acc * 100)}%"></i></span><span class="mono small">${a.n ? Math.round(a.acc * 100) + '%' : '–'} · ${Math.round(a.cov * 100)}% przer.</span></div>`).join('')}
+  <div class="card"><h3 style="margin-top:0">Tematy do podciągnięcia</h3>${wk.slice(0, 6).map(a => `<div class="wkt"><span class="lbl">${esc(tname(a.t))}</span><span class="t"><i style="width:${a.n ? Math.round(a.acc * 100) : 0}%"></i></span><span class="mono small">${a.n ? Math.round(a.acc * 100) + '%' : '–'} · ${Math.round(a.cov * 100)}% przer.</span></div>`).join('')}
   <p class="small muted" style="margin:8px 0 0">Kolejność: skuteczność w fiszkach i testach (ostatnie 45 dni) i to, ile kart tematu jeszcze nie widziałeś – ważone tym, jak często temat był na ${target === 1 ? 'okręgowym' : 'centralnym'} w latach 2021–2025.</p></div></div>`;
 }
 function planHTML(dOkr) {
@@ -538,7 +538,7 @@ function renderCard(app) {
      <div class="face f">${front(c, info)}</div>
      <div class="face b" id="fb">${s.back ? backHTML(c, info) : ''}</div>
    </div></div>
-   <div id="act">${s.back ? gradeHTML(c) : `<div class="row" style="justify-content:center;margin-top:14px"><button class="btn pri big" id="flipb">Odwróć kartę</button></div><div class="keys">spacja – odwróć · 1–4 – ocena</div>`}</div>
+   <div id="act">${s.back ? gradeHTML(c) : `<div class="row" style="justify-content:center;margin-top:14px"><button class="btn pri big" id="flipb">Odwróć kartę</button></div><div class="keys kbdh">spacja – odwróć · 1–4 – ocena</div>`}</div>
   </div>`;
   bindCard(app, c);
 }
@@ -987,6 +987,8 @@ async function mountMap(el, o = {}) {
   let t; try { t = await mapSvg(); } catch (e) { el.innerHTML = `<img src="${D.mapa.img}" alt="Mapa Europy z numerami państw" style="width:100%;border-radius:8px">`; return null; }
   el.innerHTML = `${o.views === false ? '' : `<div class="seg mviews">${MVIEWS.map(([k, n]) => `<button data-v="${k}" class="${k === 'all' ? 'on' : ''}">${n}</button>`).join('')}</div>`}<div class="mapwrap">${t}</div>`;
   const svg = $('svg', el); const m = { svg, el };
+  // Safari źle skaluje <text> przez transform-box – etykiety centrujemy w kółku i skalujemy rozmiarem czcionki
+  $$('.lb', svg).forEach(g => { const c = g.querySelector('circle:not(.pt)'), tx = g.querySelector('text'); if (c && tx) { tx.setAttribute('y', c.getAttribute('cy')); tx.setAttribute('dominant-baseline', 'central'); } });
   const fit = () => { const w = svg.getBoundingClientRect().width; if (!w) return; const upp = svg.viewBox.baseVal.width / w; const k = Math.max(.42, Math.min(1.5, 10.5 * upp / 10.5)); svg.style.setProperty('--ls', k.toFixed(3)); svg.style.setProperty('--ls2', Math.min(k, 1.2).toFixed(3)); };
   m.setView = v => { const b = D.mapa.geo.views[v] || D.mapa.geo.views.all; svg.setAttribute('viewBox', b.join(' ')); $$('.mviews button', el).forEach(x => x.classList.toggle('on', x.dataset.v === v)); fit(); };
   fit(); if (window.ResizeObserver) new ResizeObserver(fit).observe(svg);
@@ -1150,7 +1152,7 @@ function themeBtn() {
 }
 async function boot() {
   themeBtn();
-  try { D = await (await fetch('content.json?v=20261119a')).json(); } catch (e) { $('#app').innerHTML = '<div class="empty">Nie udało się wczytać materiałów. Odśwież stronę.</div>'; return; }
+  try { D = await (await fetch('content.json?v=20261119c')).json(); } catch (e) { $('#app').innerHTML = '<div class="empty">Nie udało się wczytać materiałów. Odśwież stronę.</div>'; return; }
   for (const t of D.topics) TOP[t.c] = t;
   buildCards();
   migSettings(); rescoreTests(true);
