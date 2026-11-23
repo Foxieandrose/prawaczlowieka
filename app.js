@@ -4,7 +4,7 @@ const $ = (s, r = document) => r.querySelector(s), $$ = (s, r = document) => [..
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const DAY = 864e5, LS = 'owpc-kurs-v1', GH = !!window.OWPC_GH;
 const LET = 'abcd';
-let D = null, CARDS = [], CI = {}, TOP = {}, ROUTE = '', RUN = null, SESS = null, QZ = null;
+let D = null, CARDS = [], CI = {}, TOP = {}, ROUTE = '', RUN = null, SESS = null, QZ = null, TRN = null;
 const now = () => Date.now();
 const dayStart = t => { const d = new Date(t); d.setHours(0, 0, 0, 0); return +d; };
 const fmtDate = t => new Date(t).toLocaleDateString('pl-PL', { day: 'numeric', month: 'long', year: 'numeric' });
@@ -80,7 +80,7 @@ async function syncInit() {
 let softT = null;
 // odświeżenie po synchronizacji tylko w widokach „do oglądania” – nigdy w trakcie treningu, testu, sesji czy przeglądu wyniku
 const SOFT_OK = ['', 'fiszki', 'testy', 'lekcje', 'analiza', 'arkusze', 'wiecej'];
-function softRender() { clearTimeout(softT); softT = setTimeout(() => { const r = location.hash.slice(1).split('-')[0]; if (!RUN && !SESS && !QZ && SOFT_OK.includes(r)) route(); }, 500); }
+function softRender() { clearTimeout(softT); softT = setTimeout(() => { const r = location.hash.slice(1).split('-')[0]; if (!RUN && !SESS && !QZ && !TRN && SOFT_OK.includes(r)) route(); }, 500); }
 
 /* ---------- powtórki: FSRS-4.5 (jak w Anki), z przeniesieniem starych „pudełek” ---------- */
 const FW = [0.4872, 1.4003, 3.7145, 13.8206, 5.1618, 1.2298, 0.8975, 0.031, 1.6474, 0.1367, 1.0461, 2.1072, 0.0793, 0.3246, 1.587, 0.2272, 2.8755];
@@ -213,7 +213,7 @@ const NAV = [
 const svg = p => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${p}</svg>`;
 function navHTML() {
   const cur = (location.hash.replace(/^#\/?/, '').split(/[-/]/)[0] || ''); 
-  const map = { lekcja: 'lekcje', sesja: 'fiszki', test: 'testy', wynik: 'testy', arkusz: 'arkusze', quiz: 'testy' };
+  const map = { lekcja: 'lekcje', sesja: 'fiszki', test: 'testy', trening: 'testy', wynik: 'testy', arkusz: 'arkusze', quiz: 'testy' };
   const act = map[cur] ?? cur;
   $('#tabs').innerHTML = NAV.map(([h, n]) => `<a href="#${h}" class="${act === h ? 'on' : ''}">${n}</a>`).join('');
   const bot = [NAV[0], NAV[2], NAV[3], NAV[4], ['wiecej', 'Więcej', '<circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/>']];
@@ -224,9 +224,10 @@ function route() {
   if (RUN && p !== 'test') { const tgt = location.hash; history.replaceState(null, '', '#test'); ask('Przerwać test? Odpowiedzi zostaną utracone.', 'Przerwij test', () => { stopRun(); location.hash = tgt; }); return; }
   if (p !== 'quiz') { if (QZ && QZ.timer) clearInterval(QZ.timer); QZ = null; }
   if (p !== 'sesja') SESS = null;
-  ROUTE = h; navHTML();
+  if (p !== 'trening') TRN = null;
+  ROUTE = h; navHTML(); $('#app').onclick = null;
   const app = $('#app');
-  const V = { '': vHome, analiza: vAnaliza, lekcje: vLekcje, lekcja: vLekcja, fiszki: vFiszki, sesja: vSesja, testy: vTesty, test: vTest, wynik: vWynik, quiz: vQuiz, arkusze: vArkusze, arkusz: vArkusz, mapa: vMapa, szukaj: vSzukaj, wiecej: vWiecej, ustawienia: vUstawienia };
+  const V = { '': vHome, analiza: vAnaliza, lekcje: vLekcje, lekcja: vLekcja, fiszki: vFiszki, sesja: vSesja, testy: vTesty, trening: vTrening, test: vTest, wynik: vWynik, quiz: vQuiz, arkusze: vArkusze, arkusz: vArkusz, mapa: vMapa, szukaj: vSzukaj, wiecej: vWiecej, ustawienia: vUstawienia };
   (V[p] || vHome)(app, a, b);
   if (!p || !['sesja', 'test', 'quiz'].includes(p)) window.scrollTo(0, 0);
 }
@@ -357,7 +358,7 @@ function planHTML(dOkr) {
     ['16–18 XII', 'Lekkie powtórki, ściągi: komitety traktatowe, Konstytucja (artykuły), lata dokumentów, NATO/UE, siedziby.', ['lekcje']],
     ['19 XII', 'Etap okręgowy. Cz. I: 40 pytań, każde 0/1 – zaznacz wszystkie poprawne i wpisz ich liczbę w kratce.', []],
   ];
-  return `<div class="card"><table><tbody>${rows.map(r => `<tr><td class="mono" style="white-space:nowrap;width:120px">${r[0]}</td><td>${r[1]}</td><td style="width:1%;white-space:nowrap">${r[2].map(x => `<a class="btn sm" href="#${x}">${NAV.find(n => n[0] === x)[1]}</a>`).join(' ')}</td></tr>`).join('')}</tbody></table>
+  return `<div class="card"><table class="plantab"><tbody>${rows.map(r => `<tr><td class="mono" style="white-space:nowrap;width:120px">${r[0]}</td><td>${r[1]}</td><td style="width:1%;white-space:nowrap">${r[2].map(x => `<a class="btn sm" href="#${x}">${NAV.find(n => n[0] === x)[1]}</a>`).join(' ')}</td></tr>`).join('')}</tbody></table>
   <p class="small muted" style="margin:10px 0 0">Po 19 XII plan przełącza się na etap centralny: dział III, KPP UE (40 pkt w cz. II!) i quiz finałowy.</p></div>`;
 }
 function testRow(t) { return `<div class="row between" style="padding:8px 0;border-bottom:1px solid var(--line)"><span><b>${esc(t.title)}</b> <span class="muted small">· ${fmtShort(t.date)}</span></span><span class="mono">${fmtPts(t.score)} / ${t.max} pkt (${pct(t.score, t.max)}%)</span></div>`; }
@@ -472,7 +473,7 @@ function vLekcja(app, id) {
     <div class="eyebrow" style="margin-top:12px">${esc(GRP[l.grp] || '')} · program: ${esc(l.prog)}</div>
     <h1>${esc(l.title)}</h1>
     ${l.lead ? `<p class="lead">${esc(l.lead)}</p>` : ''}
-    <div class="row noprint" style="margin:6px 0 18px"><button class="btn sm" id="tSc">Pokaż ściągę</button><button class="btn sm" id="pr">Ściąga PDF</button><a class="btn sm" href="${l.pool ? '#sesja-p-' + l.pool : '#sesja-t-' + l.t.join('-')}">${l.pool ? 'Fiszki: pytania autorskie' : 'Fiszki z tematu'} (${n})</a><button class="btn sm" id="tst">Test z tematu</button></div>
+    <div class="row noprint" style="margin:6px 0 18px"><button class="btn sm" id="tSc">Pokaż ściągę</button><button class="btn sm" id="pr">Ściąga PDF</button><a class="btn sm" href="${l.pool ? '#sesja-p-' + l.pool : '#sesja-t-' + l.t.join('-')}">${l.pool ? 'Fiszki: pytania autorskie' : 'Fiszki z tematu'} (${n})</a><button class="btn sm" id="tst">Test z tematu</button>${l.pool ? '' : `<a class="btn sm" href="#trening-t-${l.t.join('-')}">Trening z tematu (odpowiedzi od razu)</a>`}</div>
     <div id="lsc" class="sheet" hidden>${l.sc || '<p>Brak ściągi.</p>'}</div>
     <div class="md" id="lmd">${l.h}</div>
     <div class="row noprint" style="margin:24px 0"><button class="btn ${S.lessons[l.id] ? '' : 'pri'}" id="done">${S.lessons[l.id] ? '✓ Przeczytane' : 'Oznacz jako przeczytane'}</button></div>
@@ -504,7 +505,7 @@ function vFiszki(app) {
   if (!f._aut) { if (f.pools.includes('new') && !f.pools.includes('aut')) f.pools.push('aut'); f._aut = 1; }
   const pstats = Object.keys(POOLS).map(p => ({ p, ...stats(c => c.pool === p) }));
   app.innerHTML = `<div class="eyebrow">Powtórki</div><h1>Fiszki</h1>
-  <p class="lead">Front: pytanie (z odpowiedziami a–d, jeśli to test). Możesz zaznaczyć odpowiedź albo wpisać swoją. Odwrót: klucz, wyjaśnienie każdej odpowiedzi, ramka „Uwaga” przy spornych kluczach i źródło. Nowa karta: „Nie umiem” i „Z trudem” – wraca jeszcze w tej sesji, „Umiem” – jutro, „Łatwe” – za 3 dni. Potem odstępy rosną według algorytmu FSRS (jak w Anki), ale przed etapem najwyżej do ${maxIvl(now())} dni (ok. 1/3 czasu, jaki został), więc każda karta z jego zakresu wróci przed nim jeszcze kilka razy. Limit zmienisz w Ustawieniach.</p>${fcHTML()}
+  <p class="lead">Front: pytanie (z odpowiedziami a–d, jeśli to test). Możesz zaznaczyć odpowiedź albo wpisać swoją. Odwrót: klucz, wyjaśnienie każdej odpowiedzi, ramka „Uwaga” przy spornych kluczach i źródło. Nowa karta: „Powtórz” i „Trudne” – wraca jeszcze w tej sesji, „Dobrze” – jutro, „Łatwe” – za 3 dni. Potem odstępy rosną według algorytmu FSRS (jak w Anki), ale przed etapem najwyżej do ${maxIvl(now())} dni (ok. 1/3 czasu, jaki został), więc każda karta z jego zakresu wróci przed nim jeszcze kilka razy. Limit zmienisz w Ustawieniach.</p>${fcHTML()}
   <div class="card"><div class="row between"><b>Zestaw na sesję</b><span class="small muted">nowych dziś: ${S.day.newDone} / ${newLimit()}${S.settings.newPerDay === 'auto' ? ' (auto)' : ''} · <a href="#ustawienia">zmień</a></span></div>
   <div class="seg" id="presets"><button data-p="okr">Wszystko na okręgowy</button><button data-p="ctr">Wszystko na centralny</button><button data-p="o2">Tylko cz. II okręgowego</button><button data-p="kpp">KPP UE</button><button data-p="aut">Prognoza 2026/27</button></div>
   ${pstats.map(s => `<label class="ck deck" style="grid-template-columns:auto minmax(0,1fr) auto"><input type="checkbox" value="${s.p}" ${f.pools.includes(s.p) ? 'checked' : ''} ${s.total ? '' : 'disabled'}><span><b>${POOLS[s.p].n}</b><br><span class="small muted">${POOLS[s.p].d}</span><span class="bar" style="margin-top:6px;max-width:320px"><i style="width:${pct(s.seen, s.total)}%"></i></span></span><span class="small mono" style="text-align:right">${s.total}<br><span class="muted">${s.due ? s.due + ' do powt.' : s.seen + ' przer.'}</span></span></label>`).join('')}
@@ -614,8 +615,8 @@ function gradeHTML(c) {
   if (c.k === 'mc' && s.sel.size) sug = mcOk(c, [...s.sel]) ? 'g3' : 'g1';
   else if (s.typed) { const m = scoreOpen(c.id, s.typed, c.a); sug = m >= .8 ? 'g3' : m >= .45 ? 'g2' : 'g1'; }
   const st = S.cards[c.id];
-  const B = [['g1', 'bad', 'Nie umiem'], ['g2', 'mid', 'Z trudem'], ['g3', 'ok', 'Umiem'], ['g4', 'easy', 'Łatwe']];
-  return `<div class="grade g4b">${B.map(([cl, r, l], i) => `<button class="${cl} ${sug === cl ? 'sug' : ''}" data-r="${r}"><b>${l}</b><span>${ivlLabel(st, r, c)}</span><kbd>${i + 1}</kbd></button>`).join('')}</div><div class="keys">„Nie umiem” (a przy nowej karcie także „Z trudem”) – karta wróci jeszcze w tej sesji. „Z trudem” – pamiętałeś, ale z wysiłkiem lub częściowo. Przy pytaniu testowym jedna zła litera = „Nie umiem”.</div>`;
+  const B = [['g1', 'bad', 'Powtórz'], ['g2', 'mid', 'Trudne'], ['g3', 'ok', 'Dobrze'], ['g4', 'easy', 'Łatwe']];
+  return `<div class="grade g4b">${B.map(([cl, r, l], i) => `<button class="${cl} ${sug === cl ? 'sug' : ''}" data-r="${r}"><b>${l}</b><span>${ivlLabel(st, r, c)}</span><kbd>${i + 1}</kbd></button>`).join('')}</div><div class="keys">„Powtórz” – nie wiedziałeś albo zgadywałeś; karta wróci jeszcze w tej sesji (przy nowej karcie także „Trudne”). „Trudne” – pamiętałeś, ale z wysiłkiem lub częściowo. Przy pytaniu testowym jedna zła litera = „Powtórz”.</div>`;
 }
 function bindCard(app, c) {
   const s = SESS;
@@ -712,6 +713,7 @@ function vTesty(app, all) {
   const stage = (title, when, keys, open) => `<details class="tstage" ${open ? 'open' : ''}><summary><b>${title}</b><span class="small muted">${when}</span></summary><div class="tcards">${keys.map(card).join('')}</div></details>`;
   const kinds = Object.keys(KIND_N).filter(k => S.tests.some(x => x.kind === k));
   app.innerHTML = `<div class="eyebrow">Sprawdzanie wiedzy</div><h1>Testy próbne</h1>
+  <div class="card trn-card"><b>Tryb rozwiązywania</b><div class="seg" id="tmode" style="margin:8px 0 6px"><button data-m="test">Testowy – odpowiedzi na końcu</button><button data-m="tren">Treningowy – odpowiedzi od razu</button></div><p class="small muted" style="margin:0" id="tmoded"></p></div>
   <p class="lead">Każdy test ma format prawdziwego etapu: ten sam czas, punktacja i układ tematów co wylosowany arkusz z ostatnich lat, ale z innymi pytaniami – z pozostałych edycji i autorskimi. Pytania, które już widziałeś w testach, losują się rzadziej. Oryginalne arkusze z każdego roku są w zakładce <a href="#arkusze">Arkusze</a>.</p>
   ${stage('Etap okręgowy', dO >= 0 ? `sobota 19 XII 2026 · za ${dO} ${plural(dO, 'dzień', 'dni', 'dni')}` : 'odbył się 19 XII 2026', ['okrsim', 'okr1', 'okr2', 'aut'], dO >= 0)}
   ${stage('Etap centralny', `sobota 5 VI 2027${dC >= 0 ? ` · za ${dC} dni` : ''}`, ['ctr1', 'ctr2', 'quiz'], dO < 0)}
@@ -724,6 +726,7 @@ function vTesty(app, all) {
   <h2>Historia wyników</h2>
   ${hist.length ? `${kinds.length ? `<div class="card tw"><table class="thist"><thead><tr><th>Rodzaj</th><th>Podejść</th><th>Ostatni</th><th>Średnio</th><th>Najlepszy</th></tr></thead><tbody>${simPairs().length ? (() => { const P = simPairs().map(x => x.sum); return `<tr><td><b>Pełna symulacja okręgowego</b> <span class="small muted">/ 80</span></td><td class="mono">${P.length}</td><td class="mono">${fmtPts(P[P.length - 1])}</td><td class="mono">${fmtPts(Math.round(P.reduce((a, b) => a + b, 0) / P.length * 2) / 2)}</td><td class="mono">${fmtPts(Math.max(...P))}</td></tr>`; })() : ''}${kinds.map(k => { const L = S.tests.filter(x => x.kind === k), P = L.map(x => pct(x.score, x.max)); return `<tr><td><b>${KIND_N[k]}</b></td><td class="mono">${L.length}</td><td class="mono">${P[P.length - 1]}%</td><td class="mono">${Math.round(P.reduce((a, b) => a + b, 0) / P.length)}%</td><td class="mono">${Math.max(...P)}%</td></tr>`; }).join('')}</tbody></table></div>` : ''}
   <div class="card">${(all ? hist : hist.slice(0, 8)).map(t => `<a href="#wynik-${t.id}" style="text-decoration:none;color:inherit">${testRow(t)}</a>`).join('')}${!all && hist.length > 8 ? `<button class="btn sm" id="hall" style="margin-top:10px">Pokaż wszystkie (${hist.length})</button>` : ''}</div>` : '<p class="muted">Jeszcze nie ma wyników.</p>'}`;
+  bindSkinAndMode();
   $$('#app [data-k]').forEach(b => b.onclick = () => { const p = PRESETS.find(x => x.kind === b.dataset.k); if (p.kind === 'quiz') go('#quiz'); else startTest({ ...p }); });
   const ha = $('#hall'); if (ha) ha.onclick = () => vTesty(app, true);
   $('#cgo').onclick = () => startTest({ kind: 'custom', title: 'Test własny', pool: $('#cpool').value, topics: $('#ctop').value ? [$('#ctop').value] : null, n: Math.max(5, Math.min(80, +$('#cn').value || 20)), bad: $('#cbad').checked, mins: 0 });
@@ -794,6 +797,77 @@ function mapRowsB(n) {
   return [...pick(aut, nA).map(c => ({ id: c.id, pts: 1 })), ...pick(seats, nS).map(x => ({ id: 'M-X' + (x.i + 1), pts: 1 })), ...pick(st.filter(s => s.nato || s.ue), Math.ceil((n - nS) * .7)).map(s => ({ id: 'M-S' + s.n, pts: 1 })), ...pick(st, n - nS - Math.ceil((n - nS) * .7)).map(s => ({ id: 'M-N' + s.n, pts: 1 }))].slice(0, N);
 }
 function poolBy(fn) { return CARDS.filter(fn); }
+/* ---------- TRYB TRENINGOWY: pytania jedno pod drugim, odpowiedź od razu, ocena jak w Anki ---------- */
+const RES4 = ['bad', 'mid', 'ok', 'easy'], RESN = ['Powtórz', 'Trudne', 'Dobrze', 'Łatwe'];
+function bindSkinAndMode() {
+  const sk = $('#skin');
+  if (sk) { const cur = () => document.documentElement.getAttribute('data-skin') === 'onz' ? 'onz' : 'old'; const upd = () => $$('#skin button').forEach(b => b.classList.toggle('on', b.dataset.s === cur())); $$('#skin button').forEach(b => b.onclick = () => { if (b.dataset.s === 'onz') document.documentElement.setAttribute('data-skin', 'onz'); else document.documentElement.removeAttribute('data-skin'); try { localStorage.setItem('owpc-skin', b.dataset.s); } catch (e) {} upd(); toast(b.dataset.s === 'onz' ? 'Nowa grafika' : 'Przywrócono starą grafikę'); }); upd(); }
+  const tm = $('#tmode');
+  if (tm) { const upd = () => { const m = S.settings.tmode === 'tren' ? 'tren' : 'test'; $$('#tmode button').forEach(b => b.classList.toggle('on', b.dataset.m === m)); $('#tmoded').textContent = m === 'tren' ? 'Pytania jedno pod drugim; po zaznaczeniu odpowiedzi od razu widzisz klucz i wyjaśnienie i oceniasz, kiedy pytanie ma wrócić (jeśli zgadywałeś – „Powtórz”). Bez limitu czasu i bez wpisu do historii wyników.' : 'Jak na olimpiadzie: limit czasu, punktacja, klucz i wyjaśnienia dopiero po zakończeniu – wszystkie pytania jedno pod drugim.'; }; $$('#tmode button').forEach(b => b.onclick = () => { S.settings.tmode = b.dataset.m; save(); upd(); }); upd(); }
+}
+function vTrening(app, a, b) {
+  rollDay();
+  if (!TRN) {
+    if (!(a === 't' && b)) { go('#testy'); return; }
+    const tp = b.split('-');
+    TRN = { ids: shuffle(CARDS.filter(c => c.k === 'mc' && c.ans && tp.includes(c.t))).slice(0, 40).map(c => c.id), st: {}, title: 'Trening z tematu: ' + tp.map(tname).join(', ') };
+  }
+  const T = TRN, ids = T.ids;
+  if (!ids.length) { app.innerHTML = `<div class="empty"><h2>Brak pytań w tym zakresie</h2><a class="btn pri" href="#testy">Wróć do testów</a></div>`; TRN = null; return; }
+  const item = (id, n) => {
+    const c = CI[id]; const head = x => `<div class="h"><span><b class="trn-no">${n + 1}</b> ${esc(tname(c.t))}</span><span>${esc(POOLS[c.pool] ? POOLS[c.pool].n : '')}${x}</span></div>`;
+    if (c.k !== 'mc' || !c.ans) return `<section class="tq trn-q trn-open" id="trq-${n}" data-id="${id}">${head('')}<div class="fq" style="font-size:18px">${c.q}</div>${c.img ? `<div class="qimg">${c.img}</div>` : ''}<div class="trn-o"><textarea class="trn-in" rows="2" placeholder="Twoja odpowiedź (możesz pominąć)"></textarea><div class="row" style="margin-top:8px"><button class="btn sm pri trn-show">Pokaż odpowiedź</button></div></div><div class="trn-fb"></div></section>`;
+    const multi = c.ans.length > 1;
+    return `<section class="tq trn-q" id="trq-${n}" data-id="${id}">${head(multi ? ' · kilka poprawnych' : '')}<div class="fq" style="font-size:18px">${c.q}</div>${c.img ? `<div class="qimg">${c.img}</div>` : ''}<div class="trn-o">${c.o.map((o, i) => `<button class="opt" data-l="${LET[i]}"><span class="l">${LET[i]}</span><span class="ot">${o}</span></button>`).join('')}</div>${multi ? '<div class="row" style="margin-top:8px"><button class="btn sm pri trn-chk">Sprawdź</button><span class="small muted">zaznacz wszystkie poprawne</span></div>' : ''}<div class="trn-fb"></div></section>`;
+  };
+  app.innerHTML = `<div class="sticky noprint trn-bar"><div class="row between"><span><b>${esc(T.title)}</b> <span class="muted small" id="trn-n"></span></span><span class="row"><button class="btn sm" id="trn-rev">Odkryj pozostałe</button><button class="btn pri sm" id="trn-end">Zakończ</button></span></div><div class="bar" style="margin-top:8px"><i id="trn-p" style="width:0"></i></div></div>
+  <div id="trn-list">${ids.map(item).join('')}</div><div id="trn-sum"></div>`;
+  const stats = () => { const an = ids.filter(id => T.st[id] && (T.st[id].sel || T.st[id].res)), ok = an.filter(id => T.st[id].good).length; return { a: an.length, ok, open: ids.filter(id => !T.st[id]).length }; };
+  const upd = () => { const u = stats(); $('#trn-n').textContent = `· ${u.a}/${ids.length} · dobrze ${u.ok}`; $('#trn-p').style.width = pct(ids.length - u.open, ids.length) + '%'; return u; };
+  const extra = c => `${c.e ? `<div class="ex">${c.k === 'mc' ? c.e : esc(c.e)}</div>` : ''}${c.u ? `<div class="note"><b>Uwaga:</b> ${c.k === 'mc' ? c.u : esc(c.u)}</div>` : ''}${c.src ? `<div class="src">${esc(c.src)}</div>` : ''}`;
+  const gradeRow = id => { const x = T.st[id], c = CI[id]; return `<div class="trn-g"><div class="small muted">${x.open ? 'Porównaj z kluczem i oceń sam: Powtórz, Trudne, Dobrze albo Łatwe.' : x.good ? 'Dobrze. Kiedy pytanie ma wrócić? Jeśli zgadywałeś, wybierz „Powtórz”.' : 'Źle – pytanie wróci jeszcze dziś w powtórkach. Możesz zmienić ocenę.'}</div><div class="grade g4b sm">${RES4.map((r, i) => `<button class="g${i + 1} ${x.res === r ? 'sug' : ''}" data-r="${r}"><b>${RESN[i]}</b><span>${ivlLabel(x.prev, r, c)}</span></button>`).join('')}</div></div>`; };
+  const apply = (id, res) => { const x = T.st[id]; if (!x.counted && !x.prev) { x.counted = 1; S.day.newDone++; touch('meta'); } x.res = res; S.cards[id] = schedule(x.prev, res, now(), CI[id]); save(id); };
+  const reveal = (sec, sel) => {
+    const id = sec.dataset.id, c = CI[id]; if (T.st[id]) return;
+    const chosen = sel && sel.length ? sel : null, g = chosen ? mcOk(c, chosen) : 0;
+    T.st[id] = { sel: chosen, good: !!g, prev: S.cards[id] ? { ...S.cards[id] } : undefined, res: null };
+    sec.querySelector('.trn-o').innerHTML = c.o.map((o, i) => optRev(c, i, chosen ? chosen.includes(LET[i]) : null)).join('');
+    const chk = sec.querySelector('.trn-chk'); if (chk) chk.parentNode.remove();
+    sec.classList.add(chosen ? (g ? 'isok' : 'isbad') : 'isemp');
+    if (chosen) apply(id, g ? 'ok' : 'bad');
+    sec.querySelector('.trn-fb').innerHTML = `<div class="row between" style="margin-top:6px"><span class="ans" style="font-size:16px">Poprawne: ${c.ans.split('').join(', ')}</span>${chosen ? `<span class="verdict ${g ? 'ok' : 'bad'}">${g === 2 ? 'Dobrze (wariant klucza)' : g ? 'Dobrze' : 'Źle'}</span>` : ''}</div>${altNote(c)}${extra(c)}${chosen ? gradeRow(id) : ''}`;
+  };
+  const revealOpen = (sec, typed) => {
+    const id = sec.dataset.id, c = CI[id]; if (T.st[id]) return;
+    const m = typed ? scoreOpen(c.id, typed, c.a) : -1;
+    T.st[id] = { open: 1, typed, good: false, prev: S.cards[id] ? { ...S.cards[id] } : undefined, res: null };
+    sec.querySelector('.trn-o').innerHTML = typed ? `<div class="small">Twoja odpowiedź: <b>${esc(typed).replace(/\n/g, '<br>')}</b>${m >= 0 ? ` <span class="verdict ${m >= .8 ? 'ok' : m >= .45 ? 'mid' : 'bad'}" style="margin-left:6px">${m >= .8 ? 'zgodna' : m >= .45 ? 'częściowo' : 'inna'}</span>` : ''}</div>` : '';
+    sec.classList.add('isemp');
+    sec.querySelector('.trn-fb').innerHTML = `<div class="ans" style="font-size:17px;white-space:pre-wrap">${esc(c.a)}</div>${extra(c)}${gradeRow(id)}`;
+  };
+  const finish = () => {
+    const u = stats(); const again = ids.filter(id => T.st[id] && (T.st[id].res === 'bad' || T.st[id].res === 'mid'));
+    $('#trn-sum').innerHTML = `<div class="card" style="margin-top:18px"><h2 style="margin-top:0">Wynik ${u.ok}/${u.a}</h2><p>${pct(u.ok, u.a)}% poprawnych${u.a < ids.length ? `, bez odpowiedzi: ${ids.length - u.a}` : ''}. Pytania ocenione „Powtórz” wrócą w fiszkach jeszcze dziś, pozostałe w rosnących odstępach.</p><div class="row">${again.length ? `<button class="btn pri" id="trn-ag">Jeszcze raz błędne i trudne (${again.length})</button>` : ''}<a class="btn" href="#testy">Nowy zestaw</a><a class="btn" href="#fiszki">Fiszki</a></div></div>`;
+    const ag = $('#trn-ag'); if (ag) ag.onclick = () => { TRN = { ids: shuffle(again), st: {}, title: T.title.replace(/ – poprawka$/, '') + ' – poprawka' }; vTrening(app); window.scrollTo(0, 0); };
+  };
+  app.onclick = e => {
+    if (TRN !== T) return;
+    const gb = e.target.closest('.trn-g .grade button');
+    if (gb) { const sec = gb.closest('.trn-q'), id = sec.dataset.id, x = T.st[id]; apply(id, gb.dataset.r); if (x.open) { x.good = x.res === 'ok' || x.res === 'easy'; sec.classList.remove('isemp', 'isok', 'isbad'); sec.classList.add(x.good ? 'isok' : 'isbad'); } sec.querySelectorAll('.trn-g .grade button').forEach(q => q.classList.toggle('sug', q === gb)); if (x.open && !upd().open) finish(); return; }
+    const sh = e.target.closest('.trn-show');
+    if (sh) { const sec = sh.closest('.trn-q'); revealOpen(sec, (sec.querySelector('.trn-in').value || '').trim()); upd(); return; }
+    const chk = e.target.closest('.trn-chk');
+    if (chk) { const sec = chk.closest('.trn-q'); const sel = [...sec.querySelectorAll('.opt.sel')].map(o => o.dataset.l); if (!sel.length) { toast('Zaznacz co najmniej jedną odpowiedź'); return; } reveal(sec, sel); if (!upd().open) finish(); return; }
+    const o = e.target.closest('.trn-q .opt'); if (!o || o.disabled) return;
+    const sec = o.closest('.trn-q'), c = CI[sec.dataset.id];
+    if (c.ans.length > 1) { o.classList.toggle('sel'); return; }
+    reveal(sec, [o.dataset.l]); if (!upd().open) finish();
+  };
+  $('#trn-rev').onclick = () => { $$('#trn-list .trn-q').forEach(sec => sec.classList.contains('trn-open') ? revealOpen(sec, (sec.querySelector('.trn-in') || {}).value || '') : reveal(sec, null)); upd(); finish(); };
+  $('#trn-end').onclick = () => { finish(); $('#trn-sum').scrollIntoView({ behavior: 'smooth', block: 'start' }); };
+  upd();
+}
+
 function startTest(p) {
   if (p.kind === 'okrsim') p = { ...PRESETS.find(x => x.kind === 'okr1'), title: 'Symulacja okręgowego – cz. I', sim: 's' + Date.now().toString(36), part: 1 };
   let items = [];
@@ -811,6 +885,7 @@ function startTest(p) {
     items = take(pool, p.n || 20);
   }
   if (!items.length) { toast('Brak pytań dla tych ustawień'); return; }
+  if ((p.mode || S.settings.tmode) === 'tren' && p.mode !== 'test') { stopRun(); TRN = { ids: items.map(x => x.id).filter(id => CI[id]), st: {}, title: p.title + ' – tryb treningowy' }; if (location.hash === '#trening') route(); else go('#trening'); return; }
   stopRun();
   RUN = { id: 't' + Date.now().toString(36), kind: p.kind, title: p.title, base: p.base || p.title, sim: p.sim, part: p.part, mins: p.mins || 0, start: now(), items, ans: {}, typed: {} };
   go('#test');
@@ -1161,7 +1236,7 @@ function fcHTML() {
 function vUstawienia(app) {
   const ex = nextExam(now()), target = ex === examDates().okr ? 1 : 2, pn = planNew(c => lvlRank[c.lvl] <= target);
   const v = S.settings.newPerDay, ret = S.settings.ret || .9;
-  app.innerHTML = `<h1>Ustawienia</h1><div class="card"><h3>Fiszki</h3>
+  app.innerHTML = `<h1>Ustawienia</h1><div class="card"><h3>Wygląd</h3><p class="small">Kurs ma nową grafikę („Błękit ONZ”). Poprzednią („akt praw”) możesz przywrócić w każdej chwili – treść i postęp są te same.</p><div class="seg" id="skin"><button data-s="onz">Nowa grafika</button><button data-s="old">Stara grafika</button></div></div><div class="card"><h3>Fiszki</h3>
   <div class="grid g2"><label><span class="small muted">Nowe karty dziennie</span><select id="npm"><option value="auto" ${v === 'auto' ? 'selected' : ''}>automatycznie – tyle, żeby zdążyć przed etapem (teraz ${newLimit()})</option><option value="n" ${v !== 'auto' ? 'selected' : ''}>stała liczba</option></select></label>
   <label><span class="small muted">Stała liczba</span><input type="number" id="npd" min="5" max="300" value="${v === 'auto' ? pn.per : v}" ${v === 'auto' ? 'disabled' : ''}></label>
   <label><span class="small muted">Najdłuższy odstęp między powtórkami</span><select id="mxi">${[['auto', `automatycznie – ok. 1/3 czasu do etapu, min. 5 dni (teraz ${maxIvl(now())} dni)`], ['3', '3 dni'], ['5', '5 dni'], ['7', '7 dni'], ['14', '14 dni'], ['30', '30 dni'], ['365', 'bez limitu']].map(([x, l]) => `<option value="${x}" ${String(S.settings.maxIvl || 'auto') === x ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
@@ -1174,6 +1249,7 @@ function vUstawienia(app) {
   $('#ex').onclick = async () => { S.lastExport = now(); persist(); const blob = new Blob([JSON.stringify(S)], { type: 'application/json' }); const name = `owpc-postep-${new Date().toISOString().slice(0, 10)}.json`; try { const dl = window.claude && window.claude.use ? await window.claude.use('downloads') : null; if (dl) { await dl.save({ filename: name, data: blob }); return; } } catch (e) {} const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; a.click(); };
   $('#im').onchange = async e => { const f = e.target.files[0]; if (!f) return; try { const s = JSON.parse(await f.text()); if (!s.cards) throw 0; S = Object.assign(blank(), s); persist(); for (let i = 0; i < NSH; i++) touch('c' + i); touch('meta'); toast('Wczytano kopię'); } catch (err) { toast('To nie jest plik kopii kursu'); } };
   $('#rs').onclick = () => ask('Na pewno usunąć cały postęp (fiszki, testy, lekcje)?', 'Usuń postęp', () => { S = blank(); persist(); for (let i = 0; i < NSH; i++) touch('c' + i); touch('meta'); toast('Wyczyszczono'); });
+  bindSkinAndMode();
 }
 
 /* ---------- motyw, start ---------- */
@@ -1186,7 +1262,7 @@ function themeBtn() {
 }
 async function boot() {
   themeBtn();
-  try { D = await (await fetch('content.json?v=20261123a')).json(); } catch (e) { $('#app').innerHTML = '<div class="empty">Nie udało się wczytać materiałów. Odśwież stronę.</div>'; return; }
+  try { D = await (await fetch('content.json?v=20261123b')).json(); } catch (e) { $('#app').innerHTML = '<div class="empty">Nie udało się wczytać materiałów. Odśwież stronę.</div>'; return; }
   for (const t of D.topics) TOP[t.c] = t;
   buildCards();
   migSettings(); rescoreTests(true);
