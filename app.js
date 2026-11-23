@@ -17,13 +17,14 @@ const fold = s => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ
 function toast(t) { const el = $('#toast'); el.textContent = t; el.classList.add('on'); clearTimeout(toast.t); toast.t = setTimeout(() => el.classList.remove('on'), 2400); }
 
 /* ---------- stan i zapis ---------- */
-function blank() { return { cards: {}, tests: [], lessons: {}, sheets: {}, settings: { newPerDay: 'auto', ret: .9, target: 'okr', _srs2: 1 }, day: { date: 0, newDone: 0 }, acc: {}, mapst: {}, upd: 0 }; }
+function blank() { return { cards: {}, tests: [], lessons: {}, sheets: {}, settings: { newPerDay: 'auto', ret: .9, maxIvl: 'auto', target: 'okr', _srs2: 1, _srs3: 1 }, day: { date: 0, newDone: 0 }, acc: {}, mapst: {}, upd: 0 }; }
 function load() { try { const s = JSON.parse(localStorage.getItem(LS)); if (s && s.cards) return Object.assign(blank(), s); } catch (e) {} return blank(); }
 let S = load();
 function persist() { try { localStorage.setItem(LS, JSON.stringify(S)); } catch (e) {} }
 const NSH = 6;
 const SY = { db: null, uid: null, dirty: new Set(), timer: null, busy: false };
 function shard(id) { let h = 0; for (const ch of id) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return h % NSH; }
+const cver = v => Math.max(v.last || 0, v.cap || 0);
 function touch(name) { SY.dirty.add(name); if (!SY.db) return; clearTimeout(SY.timer); SY.timer = setTimeout(flush, 2500); }
 function save(cardId) { persist(); if (cardId) touch('c' + shard(cardId)); else touch('meta'); }
 function docRef(name) { return SY.db.collection('data/users/' + SY.uid).doc('owpc_' + name); }
@@ -55,8 +56,8 @@ async function syncInit() {
       docRef('c' + i).onSnapshot(s => {
         if (!s.exists) { touch('c' + i); return; }
         const r = (s.data() || {}).m || {}; let ch = false, local = false;
-        for (const [id, v] of Object.entries(r)) { const l = S.cards[id]; if (!l || (v.last || 0) > (l.last || 0)) { S.cards[id] = v; ch = true; } }
-        for (const [id, v] of Object.entries(S.cards)) if (shard(id) === i && (!r[id] || (v.last || 0) > (r[id].last || 0))) local = true;
+        for (const [id, v] of Object.entries(r)) { const l = S.cards[id]; if (!l || cver(v) > cver(l)) { S.cards[id] = v; ch = true; } }
+        for (const [id, v] of Object.entries(S.cards)) if (shard(id) === i && (!r[id] || cver(v) > cver(r[id]))) local = true;
         if (ch) { persist(); softRender(); } if (local) touch('c' + i);
       }, err);
     }
@@ -95,11 +96,20 @@ function daysTo(ts, t = now()) { return Math.round((dayStart(ts) - dayStart(t)) 
 const OLDBOX = [.5, 1, 3, 7, 14, 30];
 function migrate(st) { if (!st || st.S) return st; const n = st.n || 1, w = st.w || 0; return { ...st, S: OLDBOX[Math.min(5, st.b || 0)], D: clampD(4.5 + 4 * w / n), v: 2 }; }
 const hashN = str => { let h = 2166136261; for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; };
+// Najdłuższy odstęp: przed etapem ok. 1/3 czasu do niego (np. 26 dni → 9 dni), ale nie mniej niż 5 dni – żeby powtórek nie było setki dziennie
+function maxIvl(t, c) {
+  const v = S.settings.maxIvl || 'auto'; if (v !== 'auto') return Math.max(1, +v);
+  const ex = nextExam(t); if (!ex) return 60;
+  const target = ex === examDates().okr ? 1 : 2, left = Math.max(1, daysTo(ex, t));
+  if (c && lvlRank[c.lvl] > target) return Math.max(7, Math.min(60, Math.round(left / 2)));
+  return Math.max(5, Math.min(21, Math.round(left / 3)));
+}
 function schedule(st, res, t, c) {
-  const g = GRADE[res] || 3; let s = migrate(st) ? { ...migrate(st) } : null;
-  if (!s) s = { n: 0, w: 0, S: FW[g - 1], D: fD0(g), v: 2 };
+  const g = GRADE[res] || 3; const old = migrate(st); let s = old ? { ...old } : null;
+  const fresh = !s || !s.n; let el = 0, prevIvl = 0;
+  if (!s) s = { n: 0, w: 0, S: FW[g - 1], D: fD0(g), v: 3 };
   else {
-    const el = (dayStart(t) - dayStart(s.last || t)) / DAY;
+    el = (dayStart(t) - dayStart(s.last || t)) / DAY; prevIvl = Math.max(1, Math.round(((s.due || t) - (s.last || t)) / DAY));
     if (el >= 1) {
       const R = fR(el, s.S), Dd = s.D;
       if (g === 1) s.S = Math.min(s.S, FW[11] * Math.pow(Dd, -FW[12]) * (Math.pow(s.S + 1, FW[13]) - 1) * Math.exp(FW[14] * (1 - R)));
@@ -107,11 +117,25 @@ function schedule(st, res, t, c) {
     } else if (g === 1) s.S = Math.min(s.S, FW[0]);
     s.D = clampD(FW[7] * fD0(3) + (1 - FW[7]) * (s.D - FW[6] * (g - 3)));
   }
-  s.n = (s.n || 0) + 1; if (g === 1) s.w = (s.w || 0) + 1; s.last = t; s.g = g; s.v = 2; delete s.b;
-  if (g === 1) { s.due = t; return s; }
-  let days = Math.min(365, Math.max(1, Math.round(fIvl(s.S, retention()))));
+  s.n = (s.n || 0) + 1; if (g === 1) s.w = (s.w || 0) + 1; s.last = t; s.g = g; s.v = 3; delete s.b;
+  // kroki nauki: „Nie umiem” zawsze, „Z trudem” przy pierwszym spotkaniu – karta wraca jeszcze w tej sesji
+  if (g === 1 || (fresh && g === 2)) { s.due = t; s.lrn = 1; return s; }
+  let days;
+  if (fresh || el < 1) days = g === 4 ? 3 : 1;            // nowa albo powtarzana tego samego dnia: jutro (łatwa – za 3 dni)
+  else {
+    const f = r => Math.max(1, Math.round(fIvl(s.S, r)));
+    days = f(retention());
+    const base = Math.max(1, Math.min(el, prevIvl));          // przy powtórce przed terminem liczy się faktyczny czas od ostatniej
+    if (g === 2) days = Math.max(1, Math.min(days, Math.round(base * 1.2)));   // „Z trudem” – najwyżej 1,2 × poprzedni odstęp
+    if (g === 3) days = Math.max(days, Math.round(base * 1.3));
+    if (g === 4) days = Math.max(days, Math.round(base * 2));
+  }
+  delete s.lrn;
+  const cap = maxIvl(t, c);
+  if (days >= 4 && c) days += (hashN(c.id + s.n) % 3) - 1;   // lekki rozrzut ±1 dzień, żeby karty nie wracały stadami
+  days = Math.max(1, Math.min(days, g === 4 ? cap : Math.max(1, cap - (g === 2 ? 2 : 0))));
   let due = dayStart(t) + days * DAY;
-  // przed etapem: karta, której pamięć spadłaby w dniu etapu poniżej 90%, wraca w ostatnim tygodniu (rozłożona po dniach, nie wszystkie naraz)
+  // przed etapem: karta, której pamięć spadłaby w dniu etapu poniżej 90%, wraca w ostatnim tygodniu (rozłożona po dniach)
   const ex = nextExam(t), target = ex === examDates().okr ? 1 : 2;
   if (ex && (!c || lvlRank[c.lvl] <= target) && due >= dayStart(ex)) {
     const left = (dayStart(ex) - dayStart(t)) / DAY;
@@ -119,10 +143,19 @@ function schedule(st, res, t, c) {
   }
   s.due = due; return s;
 }
+// jednorazowo: karty zaplanowane dalej niż nowy limit wracają wcześniej (rozłożone po dniach)
+function capExisting() {
+  const t = now(), d0 = dayStart(t); let k = 0;
+  for (const [id, st] of Object.entries(S.cards)) {
+    if (!st || !st.due) continue; const c = CI[id]; const cap = maxIvl(t, c);
+    if (st.due > d0 + cap * DAY) { st.due = d0 + (1 + hashN(id) % cap) * DAY; st.cap = t; k++; }
+  }
+  return k;
+}
 const isDue = (s, t) => s && s.due <= dayStart(t) + DAY - 1;
 const mastered = s => { const m = migrate(s); return !!(m && m.S >= 14); };
 const recall = (s, t = now()) => { const m = migrate(s); return m ? fR((t - (m.last || t)) / DAY, m.S) : 0; };
-function ivlLabel(st, res, c) { if (res === 'bad') return 'za chwilę'; const n = schedule(st, res, now(), c); const d = Math.round((n.due - dayStart(now())) / DAY); return d <= 1 ? 'jutro' : d < 31 ? `${d} dni` : d < 365 ? `${Math.round(d / 30)} mies.` : 'rok'; }
+function ivlLabel(st, res, c) { if (res === 'bad') return 'za chwilę'; const t = now(), n = schedule(st, res, t, c); if (n.due <= t) return 'za chwilę'; const d = Math.round((n.due - dayStart(t)) / DAY); return d <= 1 ? 'jutro' : d < 31 ? `${d} dni` : d < 365 ? `${Math.round(d / 30)} mies.` : 'rok'; }
 function rollDay() { const d = dayStart(now()); if (S.day.date !== d) { S.day = { date: d, newDone: 0 }; } }
 function planNew(filter) { const t = now(), ex = nextExam(t); let fresh = 0; for (const c of CARDS) { if (filter && !filter(c)) continue; if (!S.cards[c.id]) fresh++; } const days = ex ? Math.max(1, daysTo(ex, t) - 4) : 60; return { fresh, days, per: Math.ceil(fresh / days) }; }
 function forecast(filter, n = 7) { const t0 = dayStart(now()); const out = Array(n).fill(0); for (const c of CARDS) { if (filter && !filter(c)) continue; const s = S.cards[c.id]; if (!s) continue; const d = Math.max(0, Math.floor((s.due - t0) / DAY)); if (d < n) out[d]++; } return out; }
@@ -471,7 +504,7 @@ function vFiszki(app) {
   if (!f._aut) { if (f.pools.includes('new') && !f.pools.includes('aut')) f.pools.push('aut'); f._aut = 1; }
   const pstats = Object.keys(POOLS).map(p => ({ p, ...stats(c => c.pool === p) }));
   app.innerHTML = `<div class="eyebrow">Powtórki</div><h1>Fiszki</h1>
-  <p class="lead">Front: pytanie (z odpowiedziami a–d, jeśli to test). Możesz zaznaczyć odpowiedź albo wpisać swoją. Odwrót: klucz, wyjaśnienie każdej odpowiedzi, ramka „Uwaga” przy spornych kluczach i źródło. Powtórki planuje algorytm FSRS (ten sam co w Anki): odstęp zależy od tego, jak dobrze pamiętasz konkretną kartę – trudne wracają często, łatwe coraz rzadziej. Karty z zakresu najbliższego etapu, które zdążyłbyś zapomnieć, wracają w ostatnim tygodniu przed nim.</p>${fcHTML()}
+  <p class="lead">Front: pytanie (z odpowiedziami a–d, jeśli to test). Możesz zaznaczyć odpowiedź albo wpisać swoją. Odwrót: klucz, wyjaśnienie każdej odpowiedzi, ramka „Uwaga” przy spornych kluczach i źródło. Nowa karta: „Nie umiem” i „Z trudem” – wraca jeszcze w tej sesji, „Umiem” – jutro, „Łatwe” – za 3 dni. Potem odstępy rosną według algorytmu FSRS (jak w Anki), ale przed etapem najwyżej do ${maxIvl(now())} dni (ok. 1/3 czasu, jaki został), więc każda karta z jego zakresu wróci przed nim jeszcze kilka razy. Limit zmienisz w Ustawieniach.</p>${fcHTML()}
   <div class="card"><div class="row between"><b>Zestaw na sesję</b><span class="small muted">nowych dziś: ${S.day.newDone} / ${newLimit()}${S.settings.newPerDay === 'auto' ? ' (auto)' : ''} · <a href="#ustawienia">zmień</a></span></div>
   <div class="seg" id="presets"><button data-p="okr">Wszystko na okręgowy</button><button data-p="ctr">Wszystko na centralny</button><button data-p="o2">Tylko cz. II okręgowego</button><button data-p="kpp">KPP UE</button><button data-p="aut">Prognoza 2026/27</button></div>
   ${pstats.map(s => `<label class="ck deck" style="grid-template-columns:auto minmax(0,1fr) auto"><input type="checkbox" value="${s.p}" ${f.pools.includes(s.p) ? 'checked' : ''} ${s.total ? '' : 'disabled'}><span><b>${POOLS[s.p].n}</b><br><span class="small muted">${POOLS[s.p].d}</span><span class="bar" style="margin-top:6px;max-width:320px"><i style="width:${pct(s.seen, s.total)}%"></i></span></span><span class="small mono" style="text-align:right">${s.total}<br><span class="muted">${s.due ? s.due + ' do powt.' : s.seen + ' przer.'}</span></span></label>`).join('')}
@@ -582,7 +615,7 @@ function gradeHTML(c) {
   else if (s.typed) { const m = scoreOpen(c.id, s.typed, c.a); sug = m >= .8 ? 'g3' : m >= .45 ? 'g2' : 'g1'; }
   const st = S.cards[c.id];
   const B = [['g1', 'bad', 'Nie umiem'], ['g2', 'mid', 'Z trudem'], ['g3', 'ok', 'Umiem'], ['g4', 'easy', 'Łatwe']];
-  return `<div class="grade g4b">${B.map(([cl, r, l], i) => `<button class="${cl} ${sug === cl ? 'sug' : ''}" data-r="${r}"><b>${l}</b><span>${ivlLabel(st, r, c)}</span><kbd>${i + 1}</kbd></button>`).join('')}</div><div class="keys">„Nie umiem” – karta wróci jeszcze w tej sesji. „Z trudem” – pamiętałeś, ale z wysiłkiem lub częściowo. Przy pytaniu testowym jedna zła litera = „Nie umiem”.</div>`;
+  return `<div class="grade g4b">${B.map(([cl, r, l], i) => `<button class="${cl} ${sug === cl ? 'sug' : ''}" data-r="${r}"><b>${l}</b><span>${ivlLabel(st, r, c)}</span><kbd>${i + 1}</kbd></button>`).join('')}</div><div class="keys">„Nie umiem” (a przy nowej karcie także „Z trudem”) – karta wróci jeszcze w tej sesji. „Z trudem” – pamiętałeś, ale z wysiłkiem lub częściowo. Przy pytaniu testowym jedna zła litera = „Nie umiem”.</div>`;
 }
 function bindCard(app, c) {
   const s = SESS;
@@ -598,7 +631,7 @@ function bindCard(app, c) {
     if ((r === 'ok' || r === 'easy') && c.k !== 'mc' && s.typed && scoreOpen(c.id, s.typed, c.a) < .8) setAcc(c.id, s.typed, true);
     if (s.isNew.has(c.id)) { S.day.newDone++; s.isNew.delete(c.id); touch('meta'); }
     s.done++; if (r !== 'bad') s.ok++;
-    if (r === 'bad') { const k = s.again.filter(x => x === c.id).length; if (k < 3) { s.again.push(c.id); s.q.splice(Math.min(s.q.length, s.i + 4 + 3 * k), 0, c); } }
+    if (S.cards[c.id].due <= t) { const k = s.again.filter(x => x === c.id).length; if (k < 3) { s.again.push(c.id); s.q.splice(Math.min(s.q.length, s.i + 4 + 3 * k), 0, c); } }
     save(c.id); s.i++; s.back = false; s.sel = new Set(); s.typed = ''; renderCard(app);
   }
   s.flip = flip; s.grade = grade;
@@ -641,7 +674,7 @@ function setAcc(id, u, on) { if (!u || !u.trim()) return; const x = nrm(u); cons
 function scoreOpen(id, u, ans) { return u ? (isAcc(id, u) ? 1 : matchScore(u, ans)) : 0; }
 
 // Przeliczenie zapisanych wyników: warianty klucza (MC), uznane odpowiedzi, bez połówek
-function migSettings() { const st = S.settings; if (st._srs2) return; if (st.newPerDay === 40 || !st.newPerDay) st.newPerDay = 'auto'; st.ret = st.ret || .9; st._srs2 = 1; persist(); }
+function migSettings() { const st = S.settings; if (!st._srs2) { if (st.newPerDay === 40 || !st.newPerDay) st.newPerDay = 'auto'; st.ret = st.ret || .9; st._srs2 = 1; persist(); } if (!st._srs3) { st.maxIvl = st.maxIvl || 'auto'; st._srs3 = 1; const k = capExisting(); persist(); if (k) { touch('meta'); for (let i = 0; i < NSH; i++) touch('c' + i); } } }
 function rescoreTests(notify) {
   let up = 0, ch = 0;
   for (const t of S.tests || []) {
@@ -1131,12 +1164,13 @@ function vUstawienia(app) {
   app.innerHTML = `<h1>Ustawienia</h1><div class="card"><h3>Fiszki</h3>
   <div class="grid g2"><label><span class="small muted">Nowe karty dziennie</span><select id="npm"><option value="auto" ${v === 'auto' ? 'selected' : ''}>automatycznie – tyle, żeby zdążyć przed etapem (teraz ${newLimit()})</option><option value="n" ${v !== 'auto' ? 'selected' : ''}>stała liczba</option></select></label>
   <label><span class="small muted">Stała liczba</span><input type="number" id="npd" min="5" max="300" value="${v === 'auto' ? pn.per : v}" ${v === 'auto' ? 'disabled' : ''}></label>
+  <label><span class="small muted">Najdłuższy odstęp między powtórkami</span><select id="mxi">${[['auto', `automatycznie – ok. 1/3 czasu do etapu, min. 5 dni (teraz ${maxIvl(now())} dni)`], ['3', '3 dni'], ['5', '5 dni'], ['7', '7 dni'], ['14', '14 dni'], ['30', '30 dni'], ['365', 'bez limitu']].map(([x, l]) => `<option value="${x}" ${String(S.settings.maxIvl || 'auto') === x ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
   <label><span class="small muted">Docelowa skuteczność przypominania</span><select id="ret">${[[.85, '85% – mniej powtórek'], [.9, '90% – zalecane'], [.95, '95% – najwięcej powtórek, przed samym etapem']].map(([x, l]) => `<option value="${x}" ${ret === x ? 'selected' : ''}>${l}</option>`).join('')}</select></label></div>
   <p class="small muted">Do etapu ${target === 1 ? 'okręgowego' : 'centralnego'}: ${Math.max(0, daysTo(ex))} dni. Nieprzerobionych kart z tego zakresu: ${pn.fresh} – żeby skończyć 4 dni przed etapem, potrzeba ok. ${pn.per} nowych dziennie. Odstępy liczy FSRS: wyższa skuteczność = krótsze odstępy i więcej powtórek.</p>
   <button class="btn pri" id="sv">Zapisz</button></div>
   <div class="card"><h3>Kopia postępu</h3><p class="small">Postęp ${SY.db ? 'synchronizuje się z Twoim kontem Claude' : 'jest zapisany tylko w tej przeglądarce'}. Możesz zapisać go do pliku i wczytać na innym urządzeniu.</p><div class="row"><button class="btn" id="ex">Pobierz kopię</button><label class="btn">Wczytaj kopię<input type="file" id="im" accept=".json" hidden></label><button class="btn red" id="rs">Wyczyść postęp</button></div></div>`;
   $('#npm').onchange = () => { $('#npd').disabled = $('#npm').value === 'auto'; };
-  $('#sv').onclick = () => { S.settings.newPerDay = $('#npm').value === 'auto' ? 'auto' : Math.max(5, Math.min(300, +$('#npd').value || 40)); S.settings.ret = +$('#ret').value || .9; save(); touch('meta'); toast('Zapisano'); vUstawienia(app); };
+  $('#sv').onclick = () => { S.settings.newPerDay = $('#npm').value === 'auto' ? 'auto' : Math.max(5, Math.min(300, +$('#npd').value || 40)); S.settings.ret = +$('#ret').value || .9; const mx = $('#mxi').value, chg = mx !== String(S.settings.maxIvl || 'auto'); S.settings.maxIvl = mx === 'auto' ? 'auto' : +mx; if (chg) { const k = capExisting(); if (k) { for (let i = 0; i < NSH; i++) touch('c' + i); toast(`Skrócono odstępy ${k} kart`); } } save(); touch('meta'); toast('Zapisano'); vUstawienia(app); };
   $('#ex').onclick = async () => { S.lastExport = now(); persist(); const blob = new Blob([JSON.stringify(S)], { type: 'application/json' }); const name = `owpc-postep-${new Date().toISOString().slice(0, 10)}.json`; try { const dl = window.claude && window.claude.use ? await window.claude.use('downloads') : null; if (dl) { await dl.save({ filename: name, data: blob }); return; } } catch (e) {} const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; a.click(); };
   $('#im').onchange = async e => { const f = e.target.files[0]; if (!f) return; try { const s = JSON.parse(await f.text()); if (!s.cards) throw 0; S = Object.assign(blank(), s); persist(); for (let i = 0; i < NSH; i++) touch('c' + i); touch('meta'); toast('Wczytano kopię'); } catch (err) { toast('To nie jest plik kopii kursu'); } };
   $('#rs').onclick = () => ask('Na pewno usunąć cały postęp (fiszki, testy, lekcje)?', 'Usuń postęp', () => { S = blank(); persist(); for (let i = 0; i < NSH; i++) touch('c' + i); touch('meta'); toast('Wyczyszczono'); });
@@ -1152,7 +1186,7 @@ function themeBtn() {
 }
 async function boot() {
   themeBtn();
-  try { D = await (await fetch('content.json?v=20261119c')).json(); } catch (e) { $('#app').innerHTML = '<div class="empty">Nie udało się wczytać materiałów. Odśwież stronę.</div>'; return; }
+  try { D = await (await fetch('content.json?v=20261123a')).json(); } catch (e) { $('#app').innerHTML = '<div class="empty">Nie udało się wczytać materiałów. Odśwież stronę.</div>'; return; }
   for (const t of D.topics) TOP[t.c] = t;
   buildCards();
   migSettings(); rescoreTests(true);

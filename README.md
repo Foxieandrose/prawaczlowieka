@@ -7,4 +7,4 @@ Działa bez logowania; postęp zapisuje się w przeglądarce (kopię można pobr
 
 Organizator olimpiady i autor arkuszy archiwalnych: COPTIOSH – https://coptiosh.eu/owopc. Arkusze są podlinkowane do strony organizatora.
 
-Wersja: 20261119c
+Wersja: 20261123a

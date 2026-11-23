@@ -244,7 +244,20 @@ label.ck.deck{display:grid;width:100%}label.ck.deck>span:last-child{justify-self
 .fcst .fcb i{display:block;width:100%;max-width:26px;background:var(--un);border-radius:4px 4px 0 0;min-height:2px}
 .fcst .fcb .v{font:500 10.5px var(--mono);color:var(--muted);margin-bottom:2px}
 .fcst .fcb .d{font:500 10px var(--mono);color:var(--muted);margin-top:4px;white-space:nowrap}
-.grade button:hover{background:var(--soft)}
+.grade button{position:relative;transition:transform .18s cubic-bezier(.2,.8,.3,1.2),box-shadow .18s ease,background-color .18s ease,border-color .18s ease}
+.grade button:active{transform:translateY(0) scale(.96);transition-duration:.06s}
+@media (hover:hover){
+.grade button:hover{transform:translateY(-4px);box-shadow:0 10px 22px -10px rgba(16,26,46,.45)}
+.grade .g1:hover{background:var(--badbg);border-color:var(--bad)}.grade .g2:hover{background:var(--warnbg);border-color:var(--gold)}
+.grade .g3:hover{background:var(--okbg);border-color:var(--ok)}.grade .g4:hover{background:var(--un2);border-color:var(--un)}
+.grade button:hover span{color:var(--fg)}
+.opt{transition:transform .16s ease,box-shadow .16s ease,border-color .16s ease,background-color .16s ease}
+.opt:hover:not(:disabled):not(.right):not(.wrong):not(.sel){transform:translateX(4px);box-shadow:0 6px 16px -10px rgba(16,26,46,.4);background:var(--soft)}
+.opt:hover:not(:disabled) .l{border-color:var(--fg);color:var(--fg)}
+}
+.grade button.sug{animation:sugp 1.6s ease-in-out 2}
+@keyframes sugp{0%,100%{box-shadow:0 0 0 0 transparent}50%{box-shadow:0 0 0 4px var(--un2)}}
+@media (prefers-reduced-motion:reduce){.grade button,.opt{transition:none}.grade button:hover,.opt:hover{transform:none}.grade button.sug{animation:none}}
 .verdict{font:800 15px/1 var(--sans);letter-spacing:.06em;text-transform:uppercase}
 .verdict.ok{color:var(--ok)}.verdict.bad{color:var(--bad)}.verdict.mid{color:var(--warn)}
 .keys{text-align:center;font:500 12px/1.4 var(--mono);color:var(--muted);margin-top:10px}
@@ -314,6 +327,6 @@ details>summary{cursor:pointer;font-weight:600}
 <nav class="bottom" id="bottom" aria-label="Działy kursu"></nav>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 <script>window.OWPC_GH=1</script>
-<script src="app.js?v=20261119c"></script>
+<script src="app.js?v=20261123a"></script>
 </body>
 </html>
